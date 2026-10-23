@@ -101,7 +101,8 @@ requirements.txt             ไลบรารีเพิ่มของ Airfl
 | `cpu_models` (ตัดซ้ำข้ามแหล่งแล้ว) | 214 รุ่น |
 | UPSERT | รัน DAG ซ้ำ (`manual_upsert_check`) จำนวนแถวคงเดิม 445 / 214 |
 | แหล่งล่ม | `manual_passmark_down`: `extract_passmark` failed, `merge_transform` สำเร็จ, สถานะรัน success, `pipeline_runs.status = partial` |
-| Quality gate | ตรวจพบราคาผิดปกติ (เช่น 9,999,999 บาท) และกักกันไว้ในตาราง quarantine |
+| Quality gate ไม่ผ่าน | ตั้ง Variable `quality_min_rows=99999` แล้วรัน `manual_quality_fail`: `quarantine_batch` สำเร็จ, `load_postgres` ถูกข้าม, `pipeline_runs.status = quality_failed`, จำนวนแถวยังเป็น 445/214 |
+| Quality gate (แถวผิดปกติ) | ตรวจพบราคาผิดปกติ (เช่น 9,999,999 บาท) และกักกันไว้ในตาราง quarantine |
 
 ### จำลองแหล่งข้อมูลล่ม
 
@@ -111,3 +112,13 @@ docker compose exec airflow-scheduler airflow dags trigger cpu_price_pipeline
 # ยกเลิกการจำลอง
 docker compose exec airflow-scheduler airflow variables delete simulate_fail_source
 ```
+
+### จำลอง quality gate ไม่ผ่าน
+
+```bash
+docker compose exec airflow-scheduler airflow variables set quality_min_rows 99999
+docker compose exec airflow-scheduler airflow dags trigger cpu_price_pipeline
+docker compose exec airflow-scheduler airflow variables delete quality_min_rows   # ยกเลิก
+```
+
+หมายเหตุ: รหัสผ่านใน `.env` ใช้ได้เฉพาะตัวอักษรและตัวเลข เพราะถูกนำไปใส่ใน connection URI
