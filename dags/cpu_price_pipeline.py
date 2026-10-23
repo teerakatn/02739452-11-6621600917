@@ -20,6 +20,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from airflow import DAG
+from airflow.models import Variable
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -103,16 +104,25 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 
 # ---------------------------------------------------------------- extract
 
+def _maybe_simulate_failure(source):
+    """ทดสอบกรณีแหล่งล่ม: ตั้ง Airflow Variable simulate_fail_source=<ihavecpu|passmark|priceza>"""
+    if Variable.get("simulate_fail_source", default_var="") == source:
+        raise ConnectionError(f"จำลองแหล่ง {source} ล่ม (Variable simulate_fail_source)")
+
+
 def task_extract_ihavecpu(**_):
+    _maybe_simulate_failure("ihavecpu")
     return cs.extract_ihavecpu()
 
 
 def task_extract_passmark(**_):
+    _maybe_simulate_failure("passmark")
     # กรองขอบเขตตั้งแต่ต้นทาง ลดขนาด XCom (หน้า chart มี ~3,000 รุ่น)
     return [r for r in cs.extract_passmark() if cs.normalize_model(r["product_name"])]
 
 
 def task_extract_priceza(query, **_):
+    _maybe_simulate_failure("priceza")
     return cs.extract_priceza(query)
 
 
