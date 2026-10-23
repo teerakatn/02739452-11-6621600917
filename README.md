@@ -92,3 +92,22 @@ Dockerfile.airflow           apache/airflow:2.10.4 + requirements.txt
 requirements.txt             ไลบรารีเพิ่มของ Airflow
 .env.example                 ตัวอย่างตัวแปร (ห้าม commit .env)
 ```
+
+## ผลการรัน
+
+| รายการ | ผล |
+|---|---|
+| `cpu_offers` (รายการดิบจาก 3 แหล่ง) | 445 แถว (ihavecpu 41, passmark 212, priceza 192) |
+| `cpu_models` (ตัดซ้ำข้ามแหล่งแล้ว) | 214 รุ่น |
+| UPSERT | รัน DAG ซ้ำ (`manual_upsert_check`) จำนวนแถวคงเดิม 445 / 214 |
+| แหล่งล่ม | `manual_passmark_down`: `extract_passmark` failed, `merge_transform` สำเร็จ, สถานะรัน success, `pipeline_runs.status = partial` |
+| Quality gate | ตรวจพบราคาผิดปกติ (เช่น 9,999,999 บาท) และกักกันไว้ในตาราง quarantine |
+
+### จำลองแหล่งข้อมูลล่ม
+
+```bash
+docker compose exec airflow-scheduler airflow variables set simulate_fail_source passmark   # ihavecpu | passmark | priceza
+docker compose exec airflow-scheduler airflow dags trigger cpu_price_pipeline
+# ยกเลิกการจำลอง
+docker compose exec airflow-scheduler airflow variables delete simulate_fail_source
+```
