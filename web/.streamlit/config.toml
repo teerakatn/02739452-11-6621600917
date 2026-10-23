@@ -1,0 +1,18 @@
+# ธีม "grape" ของ dashboard (สีละเอียดอื่น ๆ อยู่ใน style.css)
+[theme]
+base = "light"
+primaryColor = "#1F7D62"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F7F6"
+textColor = "#17201D"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
