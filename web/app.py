@@ -49,7 +49,7 @@ if page.startswith("📊"):
     families = st.sidebar.multiselect("ตระกูล", sorted(models["family"].unique()))
     sources = st.sidebar.multiselect("ต้องมีข้อมูลจากแหล่ง", ["ihavecpu", "priceza", "passmark"])
     priced_only = st.sidebar.checkbox("เฉพาะรุ่นที่มีราคาในไทย", value=True)
-    price_max = float(models["best_price_thb"].max() or 1)
+    price_max = float(models["best_price_thb"].max()) if models["best_price_thb"].notna().any() else 1.0
     price_range = st.sidebar.slider("ช่วงราคาในไทย (บาท)", 0.0, price_max, (0.0, price_max), step=100.0)
 
     view = models[models["brand"].isin(brands)]

@@ -200,9 +200,11 @@ def task_merge_transform(ti, run_id, **_):
 def task_quality_gate(ti, **_):
     data = ti.xcom_pull(task_ids="merge_transform")
     s = data["summary"]
-    passed = s["valid_rows"] >= MIN_ROWS and s["valid_ratio"] >= MIN_VALID_RATIO
+    # ปรับเกณฑ์ผ่าน Airflow Variable quality_min_rows ได้ (ใช้ทดสอบให้ gate ไม่ผ่าน)
+    min_rows = int(Variable.get("quality_min_rows", default_var=MIN_ROWS))
+    passed = s["valid_rows"] >= min_rows and s["valid_ratio"] >= MIN_VALID_RATIO
     logger.info("quality: valid_rows=%s (>= %s) ratio=%s (>= %s) -> %s",
-                s["valid_rows"], MIN_ROWS, s["valid_ratio"], MIN_VALID_RATIO, "PASS" if passed else "FAIL")
+                s["valid_rows"], min_rows, s["valid_ratio"], MIN_VALID_RATIO, "PASS" if passed else "FAIL")
     return "load_postgres" if passed else "quarantine_batch"
 
 
