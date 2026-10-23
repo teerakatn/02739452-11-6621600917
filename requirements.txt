@@ -1,0 +1,5 @@
+# ไลบรารีเพิ่มเติมสำหรับ Airflow (image apache/airflow:2.10.4 มี requests, pandas, postgres provider อยู่แล้ว)
+beautifulsoup4==4.12.3
+requests>=2.31
+apache-airflow-providers-postgres
+# web dashboard ใช้ไฟล์ web/requirements.txt (streamlit, pandas, plotly, psycopg2-binary)

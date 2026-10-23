@@ -1,0 +1,126 @@
+# CPU Price Pipeline — Airflow (LocalExecutor) + PostgreSQL + Streamlit dashboard
+#   cp .env.example .env      (แล้วแก้รหัสผ่าน)
+#   docker compose up -d --build
+#   Airflow UI : http://localhost:8080   (ผู้ใช้/รหัสผ่านตาม .env)
+#   Dashboard  : http://localhost:8501
+#   Data DB    : localhost:5433
+name: cpu-price-pipeline
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+  image: cpu-price-airflow:2.10.4
+  env_file: .env
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_META_DB_PASSWORD}@airflow-db/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'   # เปิด DAG ทันที -> รันรอบแรกอัตโนมัติ
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Bangkok
+    AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: Asia/Bangkok
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: '15'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW_CONN_CPU_DB: postgresql://${DATA_DB_USER}:${DATA_DB_PASSWORD}@cpu-db:5432/${DATA_DB_NAME}
+    _PIP_ADDITIONAL_REQUIREMENTS: ''
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+  user: "50000:0"
+  depends_on: &airflow-depends
+    airflow-db:
+      condition: service_healthy
+    cpu-db:
+      condition: service_healthy
+
+services:
+  airflow-db:              # metadata ของ Airflow
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: ${AIRFLOW_META_DB_PASSWORD}
+      POSTGRES_DB: airflow
+    volumes: [airflow-db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
+
+  cpu-db:                  # ฐานข้อมูลปลายทาง (dashboard อ่านจากที่นี่)
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${DATA_DB_USER}
+      POSTGRES_PASSWORD: ${DATA_DB_PASSWORD}
+      POSTGRES_DB: ${DATA_DB_NAME}
+    ports: ["5433:5432"]
+    volumes: [cpu-db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /sources/logs && chown -R "50000:0" /sources/logs
+        exec /entrypoint airflow version
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    user: "0:0"
+    volumes:
+      - .:/sources
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+  web:
+    build: ./web
+    env_file: .env
+    environment:
+      DB_HOST: cpu-db
+      DB_PORT: "5432"
+    ports: ["8501:8501"]
+    depends_on:
+      cpu-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  airflow-db-data:
+  cpu-db-data:
